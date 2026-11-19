@@ -16,7 +16,6 @@ class Queue {
         this.#arraySize = maxNumItems;
     }
 
-    
     /**
      * Adds item to the queue.
      * Throws an error if the queue is full [Done]

@@ -36,7 +36,6 @@ class BinaryMatrixGraph {
      * @returns {number[][]} - an array of nodes in the form of two-element arrays
      */
     neighbors(n) {
-
         let neighbors_to_n = [];
         let negihbors_pos = [[-1,0],[1,0],[0,-1],[0,1]];
 
@@ -46,7 +45,6 @@ class BinaryMatrixGraph {
                 neighbors_to_n.push(neighbor);
             }
         }
-        // ...
         return neighbors_to_n
     }
 

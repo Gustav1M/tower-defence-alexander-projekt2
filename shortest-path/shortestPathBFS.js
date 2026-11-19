@@ -58,4 +58,3 @@ function shortestPathBFS(s,t,g) {
 // End procedure
     return path;
 }  
-
