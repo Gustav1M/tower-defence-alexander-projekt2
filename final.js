@@ -3,6 +3,8 @@
 let canvasSize = 500;    // Size of canvas
 let numGridElems = 10;  // Amount of grid elements
 let framecount = 0;    // Frame count
+let s = [0,0]
+let t = [numGridElems-1,numGridElems-1]
 
 // Spawn time period
 let waveDelay = 180;          // Delay before a wave starts, in frames (10s at 60 FPS)
@@ -53,12 +55,14 @@ let grid = {
     data: [
         [],
         [],
-        [0,0,0,0,0,0,1,1,1,1],
-        [1,1,1,1,0,0,1,0,0,0],
-        [0,0,0,1,0,0,1,0,0,0],
-        [0,0,0,1,0,0,1,0,0,0],
-        [0,0,0,1,0,0,1,0,0,0],
-        [0,0,0,1,1,1,1,0,0,0],
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
         [],
         []
     ],
@@ -66,13 +70,12 @@ let grid = {
 
 let start = {row: 3, col: 0};
 
-let path = [
-    {row:3, col:0}, {row:3, col:1}, {row:3, col:2}, {row:3, col:3},
-    {row:4, col:3}, {row:5, col:3}, {row:6, col:3}, {row:7, col:3},
-    {row:7, col:4}, {row:7, col:5}, {row:7, col:6},
-    {row:6, col:6}, {row:5, col:6}, {row:4, col:6}, {row:3, col:6}, {row:2, col:6},
-    {row:2, col:7}, {row:2, col:8}, {row:2, col:9}
-];
+let graph; 
+
+let path = shortestPathBFS(s,t,graph)
+graph = new BinaryMatrixGraph(grid.data, numGridElems, numGridElems);
+console.log(path)
+
 
 // ---------------- Monsters ----------------
 
