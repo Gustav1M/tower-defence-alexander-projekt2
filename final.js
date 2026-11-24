@@ -1,10 +1,12 @@
 // Me and Gustav have worked together on this project. If you want to know more, contact us
 
 let canvasSize = 500;    // Size of canvas
-let numGridElems = 10;  // Amount of grid elements
+let numGridElems = 12;  // Amount of grid elements
 let framecount = 0;    // Frame count
-let s = [0,0]
-let t = [numGridElems-1,numGridElems-1]
+let grid;
+let start = [2, 0];
+let target = [4, 11];
+let path = [];
 
 // Spawn time period
 let waveDelay = 180;          // Delay before a wave starts, in frames (10s at 60 FPS)
@@ -13,11 +15,13 @@ let waveCountdownStart = 0; // The frame the current countdown began
 
 // Display variables
 let health = 100;         // Amount of starting health
-let money = 500;         // Amount of starting cash
+let money = 600;         // Amount of starting cash
 let killReward = 35;    // Money earned per monster killed
+let costOfWall = 50;    // Price of placing a wall
 let highScore_mk = 0;  // Highscore for monsters killed
 let highScore_wn = 0; // Highscore for highest wave completed
 let waveNumber = 1;  // Which wave we are on
+let wallPlacementErrorUntil = 0; // If you cant get frem s to t make error
 
 // Monster
 let monstersKilled = 0;            // Monsters killed
@@ -49,40 +53,60 @@ let numberoftowers = 0;           // Number of towers placed
 let towerBaseCost = 200;         // Price of the first tower
 let towerCostIncrease = 20;     // How much each extra tower adds to the price
 
-let grid = {
-    numElems: numGridElems,
-    sizeElems: canvasSize / numGridElems, // size of grid elements in pixels
-    data: [
-        [],
-        [],
-        [],
-        [],
-        [],
-        [],
-        [],
-        [],
-        [],
-        [],
-        [],
-        []
-    ],
-};
+function makeGrid() {
+    // 0 = open, 1 = blocked
+    const g = Array.from({ length: numGridElems }, () => Array(numGridElems).fill(0));
+    const walls = [
+        [0, 6], [0, 8], // This is preplaced walls
+        [1, 2], [1, 3], [1, 8],
+        [2, 5],
+        [3, 1], [3, 7],
+        [4, 3], [4, 9],
+        [5, 1], [5, 5], [5, 6],
+        [6, 4]
+    ];
+    for (const [r, c] of walls) {
+        g[r][c] = 1;
+    }
+    return g;
+}
 
-let start = {row: 3, col: 0};
+function setup() {
+    createCanvas(canvasSize, canvasSize);
+    grid = {
+        numElems: numGridElems,
+        sizeElems: canvasSize / numGridElems,
+        data: makeGrid()
+    };
+    computePath();
+}
 
-let graph; 
+function computePath() {
+    path = findPath(grid.data);
+    if (path.length === 0) {
+        throw new Error("No path exists from the monster spawn to the exit.");
+    }
+}
 
-let path = shortestPathBFS(s,t,graph)
-graph = new BinaryMatrixGraph(grid.data, numGridElems, numGridElems);
-console.log(path)
+function findPath(gridData) {
+    if (gridData[start[0]][start[1]] === 1 || gridData[target[0]][target[1]] === 1) {
+        return [];
+    }
+    const graph = new BinaryMatrixGraph(gridData, grid.numElems, grid.numElems);
+    return shortestPathBFS(start, target, graph);
+}
+
+function isPathCell(row, col) {
+    return path.some(cell => cell[0] === row && cell[1] === col);
+}
 
 
 // ---------------- Monsters ----------------
 
 function createMonster() {
     return {
-        x: start.col * grid.sizeElems + grid.sizeElems / 2,
-        y: start.row * grid.sizeElems + grid.sizeElems / 2,
+        x: start[1] * grid.sizeElems + grid.sizeElems / 2,
+        y: start[0] * grid.sizeElems + grid.sizeElems / 2,
         pathIndex: 0,
         speed: monsterspeed1,
         health: monsterhealth1,
@@ -107,9 +131,9 @@ function moveMonster(monster) {
         return monster;
     }
 
-    let target = path[monster.pathIndex + 1];
-    let targetX = target.col * grid.sizeElems + grid.sizeElems / 2;
-    let targetY = target.row * grid.sizeElems + grid.sizeElems / 2;
+    let nextCell = path[monster.pathIndex + 1];
+    let targetX = nextCell[1] * grid.sizeElems + grid.sizeElems / 2;
+    let targetY = nextCell[0] * grid.sizeElems + grid.sizeElems / 2;
 
     let dx = targetX - monster.x;
     let dy = targetY - monster.y;
@@ -136,7 +160,7 @@ function startwave() {
     waveActive = true;
     monstersspawned = 0;
     monstersinwave = 25;
-    bossinwave = waveNumber === 3 ? 1 : 0;
+bossinwave = (waveNumber > 0 && waveNumber % 3 === 0) ? 1 : 0;
     bossspawned = false;
 }
 
@@ -203,6 +227,33 @@ function mousePositionInGrid() {
     return {col: col, row: row};
 }
 
+function toggleWall(row, col) {
+    const isPlacingWall = grid.data[row][col] === 0;
+
+    if (isPlacingWall && money < costOfWall) {
+        return;
+    }
+
+    if (isPlacingWall && towers.some(tower => tower.row === row && tower.col === col)) {
+        return;
+    }
+
+    const updatedGrid = grid.data.map(gridRow => gridRow.slice());
+    updatedGrid[row][col] = isPlacingWall ? 1 : 0;
+    const updatedPath = findPath(updatedGrid);
+
+    if (updatedPath.length === 0) {
+        wallPlacementErrorUntil = framecount + 180;
+        return;
+    }
+
+    grid.data = updatedGrid;
+    path = updatedPath;
+    if (isPlacingWall) {
+        money -= costOfWall;
+    }
+}
+
 // Check if a tower is at the clicked position
 function getTowerAtPosition(col, row) {
     for (let i = 0; i < towers.length; i++) {
@@ -264,9 +315,6 @@ function drawShots() {
 
 // ---------------- p5 ----------------
 
-function setup() {
-    createCanvas(canvasSize, canvasSize);
-}
 
 function draw() {
     framecount++;
@@ -283,14 +331,15 @@ function draw() {
         line(i * grid.sizeElems, 0, i * grid.sizeElems, canvasSize);
     }
 
-    // Draw monster track
+    // Draw blocked cells and the route found by BFS
     for (let i = 0; i < grid.numElems; i++) {
-        if (grid.data[i].length > 0) {
-            for (let j = 0; j < grid.numElems; j++) {
-                if (grid.data[i][j] === 1) {
-                    fill(176, 136, 93);
-                    rect(j * grid.sizeElems, i * grid.sizeElems, grid.sizeElems);
-                }
+        for (let j = 0; j < grid.numElems; j++) {
+            if (grid.data[i][j] === 1) {
+                fill(55, 66, 88);
+                rect(j * grid.sizeElems, i * grid.sizeElems, grid.sizeElems);
+            } else if (isPathCell(i, j)) {
+                fill(176, 136, 93);
+                rect(j * grid.sizeElems, i * grid.sizeElems, grid.sizeElems);
             }
         }
     }
@@ -325,11 +374,12 @@ function draw() {
     let row = floor(mouseY / grid.sizeElems);
     if (money >= getTowerCost()) {
         if (col >= 0 && col < grid.numElems && row >= 0 && row < grid.numElems) {
-            let x = col * grid.sizeElems + grid.sizeElems / 2;
-            let y = row * grid.sizeElems + grid.sizeElems / 2;
-            fill(0, 0, 0, 100);
-            circle(x, y, towerSize);
-        }
+            if (grid.data[row][col] === 0 && !isPathCell(row, col)) {
+                let x = col * grid.sizeElems + grid.sizeElems / 2;
+                let y = row * grid.sizeElems + grid.sizeElems / 2;
+                fill(0, 0, 0, 100);
+                circle(x, y, towerSize);
+            }           }
     }
 
     // Start a wave once the countdown has passed
@@ -353,8 +403,15 @@ function draw() {
     text("Health: " + health, 6, 15);
     text("Money: " + money, 6, 30);
     text("Tower Cost: " + getTowerCost(), 6, 45);
-    text("Monsters Killed: " + monstersKilled, 6, 60);
-    text("Wave: " + waveNumber, 6, 75);
+    text("Wall Cost: " + costOfWall, 6, 60);
+    text("Monsters Killed: " + monstersKilled, 6, 75);
+    text("Wave: " + waveNumber, 6, 90);
+    if (framecount < wallPlacementErrorUntil) {
+        fill("red");
+        textAlign(CENTER, TOP);
+        text("You cant blocked the monster completely", width / 2, 95);
+        textAlign(LEFT, TOP);
+    }
 
     // Show a countdown while waiting for the next wave
     if (waitingForWave) {
@@ -374,7 +431,7 @@ function draw() {
     }
 
     // Game over
-    if (health <= 0 || waveNumber === 4) {
+    if (health <= 0 || waveNumber === 30) {
         highScore_mk = max(highScore_mk, monstersKilled);
         highScore_wn = max(highScore_wn, waveNumber - 1); // Waves actually completed
         background(0);
@@ -387,7 +444,7 @@ function draw() {
     }
 }
 
-function mousePressed() {
+function mousePressed(event) {
     if (health <= 0 || waveNumber === 4) {
         health = 100;                     // Reset health
         money = 500;                     // Reset money
@@ -404,6 +461,9 @@ function mousePressed() {
         waitingForWave = true;   // Delay applies again before the first wave
         waveCountdownStart = framecount; // Restart the countdown from now
         numberoftowers = 0;             // Reset number of towers (and therefore the price)
+        grid.data = makeGrid();         // Restore the original wall layout
+        computePath();
+        wallPlacementErrorUntil = 0;
         loop();                        // Restart the draw loop
         return;
     }
@@ -415,6 +475,12 @@ function mousePressed() {
         return;
     }
 
+    // if (event && event.button === 2) {
+    //     toggleWall(mousePosition.row, mousePosition.col);
+    //     return false;
+    // } DET HER SKAL GØRES SÅ AT MAN IKKE KAN SÆTTE VÆGGE I MENS WAVE ER AKTIV
+    
+
     // Check if clicking on an existing tower
     let towerIndex = getTowerAtPosition(mousePosition.col, mousePosition.row);
     if (towerIndex >= 0) {
@@ -422,8 +488,8 @@ function mousePressed() {
         return;
     }
 
-    // Check if grid element is occupied by the monster track
-    if (grid.data[mousePosition.row].length > 0 && grid.data[mousePosition.row][mousePosition.col] === 1) {
+    // Keep towers off blocked cells and the monster route
+    if (grid.data[mousePosition.row][mousePosition.col] === 1 || isPathCell(mousePosition.row, mousePosition.col)) {
         return;
     }
 
